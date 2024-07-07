@@ -120,7 +120,7 @@ export const handleMessageCreate =
         });
       }
 
-      if (message.author.bot) {
+      if (message.author.bot || process.env.STOP_SENDING_DM === 'true') {
         return;
       }
 
