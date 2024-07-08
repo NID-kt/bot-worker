@@ -21,7 +21,10 @@ const getOrCreateRegExp = (
 export const messageReaction = ({
   message,
   queryResultRows,
-}: { message: Message; queryResultRows: QueryResultRow[] }) => {
+}: {
+  message: Message;
+  queryResultRows: QueryResultRow[];
+}) => {
   try {
     for (const row of queryResultRows) {
       message.react(row.value);
@@ -33,7 +36,10 @@ export const handleMessageCreate =
   ({
     client,
     regexCache,
-  }: { client: Client; regexCache: Map<string, RegExp> }) =>
+  }: {
+    client: Client;
+    regexCache: Map<string, RegExp>;
+  }) =>
   async (message: Message) => {
     for (const row of (await sql`SELECT command FROM auto_reactions`).rows) {
       const regExp = getOrCreateRegExp(row.command, regexCache);
@@ -140,5 +146,30 @@ const client = new Client({
 });
 
 client.on('messageCreate', handleMessageCreate({ client, regexCache }));
+
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  if (process.env.PAYMENT_WEBHOOK) {
+    await fetch(process.env.PAYMENT_WEBHOOK, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: interaction.customId,
+        username: interaction.user.username,
+        avatar_url: interaction.user.displayAvatarURL(),
+      }),
+    });
+  }
+
+  if (interaction.customId === 'confirm') {
+    await interaction.reply('ご確認ありがとうございます 💖');
+  } else if (interaction.customId === 'transfer') {
+    await interaction.reply(`お振り込みのご連絡ありがとうございます。
+確認ができ次第またご連絡いたします！`);
+  }
+});
 
 client.login(process.env.DISCORD_BOT_TOKEN);
