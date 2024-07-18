@@ -1,5 +1,7 @@
 import { ChannelType, type Client, type Message } from 'discord.js';
-import { handleMessageCreate } from '../src/index';
+
+import { handleMessageCreate, updateQueryCache } from '../src';
+import type { QueryCache } from '../src/types';
 
 jest.mock('discord.js', () => {
   const originalModule = jest.requireActual('discord.js');
@@ -25,10 +27,16 @@ describe('handleMessageCreate', () => {
   const mockDisplayAvatarURL = jest.fn();
   const mockDelete = jest.fn();
   const client = { user: {} } as unknown as Client;
-  const regexCache = new Map();
+  const regexCache = new Map<string, RegExp>();
+  const queryCache: QueryCache = {
+    autoReactionEmojis: [],
+    reactionAgentEmojis: [],
+    commands: [],
+  };
   const handleMessageCreateCurried = handleMessageCreate({
     client,
     regexCache,
+    queryCache,
   });
 
   const createMockMessage = ({
@@ -73,6 +81,10 @@ describe('handleMessageCreate', () => {
       reference: reference,
     } as unknown as Message;
   };
+
+  beforeAll(() => {
+    return updateQueryCache(queryCache);
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
