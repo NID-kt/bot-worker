@@ -72,7 +72,6 @@ export const handleMessageCreate =
     }
 
     if (message.reference?.messageId) {
-      console.log(message.content);
       const reactionAgentEmojis = await sql`
         SELECT e.value
         FROM emojis e
@@ -81,7 +80,6 @@ export const handleMessageCreate =
         WHERE ra.command = ${message.content}
         ORDER BY rae.id ASC;
       `;
-      console.log(reactionAgentEmojis);
 
       if (reactionAgentEmojis.rows.length !== 0) {
         const repliedMessage = await message.fetchReference();
