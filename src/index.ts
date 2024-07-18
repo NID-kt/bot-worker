@@ -41,21 +41,6 @@ export const handleMessageCreate =
     regexCache: Map<string, RegExp>;
   }) =>
   async (message: Message) => {
-    for (const row of (await sql`SELECT command FROM auto_reactions`).rows) {
-      const regExp = getOrCreateRegExp(row.command, regexCache);
-      if (regExp.test(message.content)) {
-        const emojis = await sql`
-          SELECT e.value
-          FROM emojis e
-          JOIN auto_reactions_emojis ae ON e.id = ae."emojiId"
-          WHERE ae."autoReactionId" = ${row.id}
-          ORDER BY ae.id ASC
-        `;
-
-        messageReaction({ message, queryResultRows: emojis.rows });
-      }
-    }
-
     const reactionEmojis = await sql`
       SELECT ar.command, e.value
       FROM auto_reactions ar
