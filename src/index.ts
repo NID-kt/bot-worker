@@ -23,12 +23,10 @@ export const messageReaction = ({
   queryResultRows,
 }: {
   message: Message;
-  queryResultRows: QueryResultRow[];
+  queryResultRows: QueryResultRow;
 }) => {
   try {
-    for (const row of queryResultRows) {
-      message.react(row.value);
-    }
+    message.react(queryResultRows.value);
   } catch {}
 };
 
@@ -52,7 +50,7 @@ export const handleMessageCreate =
     for (const row of autoReactionEmojis.rows) {
       const regExp = getOrCreateRegExp(row.command, regexCache);
       if (regExp.test(message.content)) {
-        messageReaction({ message, queryResultRows: [row] });
+        messageReaction({ message, queryResultRows: row });
       }
     }
 
@@ -71,7 +69,7 @@ export const handleMessageCreate =
           message.delete();
           messageReaction({
             message: repliedMessage,
-            queryResultRows: [row],
+            queryResultRows: row,
           });
         }
       }
@@ -88,7 +86,7 @@ export const handleMessageCreate =
     for (const row of commands.rows) {
       if (row.command === message.content) {
         message.reply(row.response);
-        messageReaction({ message, queryResultRows: [row] });
+        messageReaction({ message, queryResultRows: row });
       }
     }
 
