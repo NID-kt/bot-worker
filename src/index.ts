@@ -58,42 +58,41 @@ export const handleMessageCreate =
 
     if (message.reference?.messageId) {
       const reactionAgentEmojis = await sql`
-        SELECT e.value
+        SELECT ra.command, e.value
         FROM emojis e
         JOIN reactions_agents_emojis rae ON e.id = rae."emojiId"
         JOIN reactions_agents ra ON ra.id = rae."reactionAgentId"
-        WHERE ra.command = ${message.content}
         ORDER BY rae.id ASC;
       `;
 
-      if (reactionAgentEmojis.rows.length !== 0) {
-        const repliedMessage = await message.fetchReference();
-        message.delete();
-        messageReaction({
-          message: repliedMessage,
-          queryResultRows: reactionAgentEmojis.rows,
-        });
+      for (const row of reactionAgentEmojis.rows) {
+        if (row.command === message.content) {
+          const repliedMessage = await message.fetchReference();
+          message.delete();
+          messageReaction({
+            message: repliedMessage,
+            queryResultRows: [row],
+          });
+        }
       }
     }
 
     const commands = await sql`
-      SELECT id, response
-      FROM commands
-      WHERE command = ${message.content}
+      SELECT c.command, c.response, e.value
+      FROM commands c
+      JOIN commands_emojis ce ON c.id = ce."commandId"
+      JOIN emojis e ON e.id = ce."emojiId"
+      ORDER BY ce.id ASC;
     `;
 
-    if (commands.rows.length !== 0) {
-      message.reply(commands.rows[0].response);
+    for (const row of commands.rows) {
+      if (row.command === message.content) {
+        message.reply(row.response);
+        messageReaction({ message, queryResultRows: [row] });
+      }
+    }
 
-      const emojis = await sql`
-        SELECT e.value
-        FROM commands_emojis ce
-        JOIN emojis e ON e.id = ce."emojiId"
-        WHERE ce."commandId" = ${commands.rows[0].id}
-      `;
-
-      messageReaction({ message, queryResultRows: emojis.rows });
-    } else if (message.channel.type === ChannelType.DM) {
+    if (message.channel.type === ChannelType.DM) {
       if (process.env.AUDIT_LOG_WEBHOOK) {
         await fetch(process.env.AUDIT_LOG_WEBHOOK, {
           method: 'POST',
