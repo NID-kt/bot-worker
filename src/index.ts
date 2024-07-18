@@ -43,7 +43,7 @@ export const handleMessageCreate =
   async (message: Message) => {
     for (const row of (await sql`SELECT command FROM auto_reactions`).rows) {
       const regExp = getOrCreateRegExp(row.command, regexCache);
-      if (message.content.match(regExp)) {
+      if (regExp.test(message.content)) {
         const emojis = await sql`
           SELECT e.value
           FROM emojis e
@@ -66,7 +66,7 @@ export const handleMessageCreate =
 
     for (const row of reactionEmojis.rows) {
       const regExp = getOrCreateRegExp(row.command, regexCache);
-      if (message.content.match(regExp)) {
+      if (regExp.test(message.content)) {
         messageReaction({ message, queryResultRows: [row] });
       }
     }
