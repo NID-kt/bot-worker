@@ -41,7 +41,7 @@ export const handleMessageCreate =
     regexCache: Map<string, RegExp>;
   }) =>
   async (message: Message) => {
-    const reactionEmojis = await sql`
+    const autoReactionEmojis = await sql`
       SELECT ar.command, e.value
       FROM auto_reactions ar
       JOIN auto_reactions_emojis are ON ar.id = are."autoReactionId"
@@ -49,7 +49,7 @@ export const handleMessageCreate =
       ORDER BY are.id ASC;
     `;
 
-    for (const row of reactionEmojis.rows) {
+    for (const row of autoReactionEmojis.rows) {
       const regExp = getOrCreateRegExp(row.command, regexCache);
       if (regExp.test(message.content)) {
         messageReaction({ message, queryResultRows: [row] });
