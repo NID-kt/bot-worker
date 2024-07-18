@@ -25,9 +25,11 @@ export const messageReaction = ({
   message: Message;
   queryResultRows: QueryResultRow;
 }) => {
-  try {
-    message.react(queryResultRows.value);
-  } catch {}
+  for (const value of queryResultRows.values) {
+    try {
+      message.react(value);
+    } catch {}
+  }
 };
 
 export const handleMessageCreate =
@@ -40,11 +42,12 @@ export const handleMessageCreate =
   }) =>
   async (message: Message) => {
     const autoReactionEmojis = await sql`
-      SELECT ar.command, e.value
+      SELECT ar.command, array_agg(e.value) as values
       FROM auto_reactions ar
       JOIN auto_reactions_emojis are ON ar.id = are."autoReactionId"
       JOIN emojis e ON e.id = are."emojiId"
-      ORDER BY are.id ASC;
+      GROUP BY ar.id, ar.command
+      ORDER BY ar.id ASC;
     `;
 
     for (const row of autoReactionEmojis.rows) {
@@ -56,11 +59,12 @@ export const handleMessageCreate =
 
     if (message.reference?.messageId) {
       const reactionAgentEmojis = await sql`
-        SELECT ra.command, e.value
-        FROM emojis e
-        JOIN reactions_agents_emojis rae ON e.id = rae."emojiId"
-        JOIN reactions_agents ra ON ra.id = rae."reactionAgentId"
-        ORDER BY rae.id ASC;
+        SELECT ra.command, array_agg(e.value) as values
+        FROM reactions_agents ra
+        JOIN reactions_agents_emojis rae ON ra.id = rae."reactionAgentId"
+        JOIN emojis e ON e.id = rae."emojiId"
+        GROUP BY ra.id, ra.command
+        ORDER BY ra.id ASC;
       `;
 
       for (const row of reactionAgentEmojis.rows) {
@@ -76,11 +80,12 @@ export const handleMessageCreate =
     }
 
     const commands = await sql`
-      SELECT c.command, c.response, e.value
+      SELECT c.command, c.response, array_agg(e.value) as values
       FROM commands c
       JOIN commands_emojis ce ON c.id = ce."commandId"
       JOIN emojis e ON e.id = ce."emojiId"
-      ORDER BY ce.id ASC;
+      GROUP BY c.id, c.command, c.response
+      ORDER BY c.id ASC;
     `;
 
     for (const row of commands.rows) {
