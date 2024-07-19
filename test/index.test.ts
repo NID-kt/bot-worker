@@ -1,6 +1,10 @@
 import { ChannelType, type Client, type Message } from 'discord.js';
 
-import { handleMessageCreate, updateQueryCache } from '../src';
+import {
+  handleClientReady,
+  handleMessageCreate,
+  updateQueryCache,
+} from '../src';
 import type { QueryCache } from '../src/types';
 
 jest.mock('discord.js', () => {
@@ -20,6 +24,14 @@ const expectReactionsToHaveBeenCalled = (mockReact: jest.Mock) => {
   expect(mockReact).toHaveBeenCalledWith('1223834970863177769');
   expect(mockReact).toHaveBeenCalledWith('🔥');
 };
+
+describe('handleClientReady', () => {
+  it('should call updateQueryCache when invoked', async () => {
+    const mockUpdateQueryCache = jest.fn();
+
+    await handleClientReady({ updateQueryCache: mockUpdateQueryCache })();
+  });
+});
 
 describe('handleMessageCreate', () => {
   const mockReact = jest.fn();

@@ -78,9 +78,13 @@ export const updateQueryCache = async (queryCache: QueryCache) => {
   queryCache.commands = commands.rows;
 };
 
-export const handleClientReady = () => {
-  return updateQueryCache(queryCache);
-};
+export const handleClientReady =
+  ({
+    updateQueryCache,
+  }: { updateQueryCache: (queryCache: QueryCache) => Promise<void> }) =>
+  () => {
+    return updateQueryCache(queryCache);
+  };
 
 export const handleMessageCreate =
   ({
@@ -155,7 +159,7 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-client.on('ready', handleClientReady);
+client.on('ready', handleClientReady({ updateQueryCache }));
 
 client.on(
   'messageCreate',
