@@ -1,7 +1,22 @@
-import type { QueryResultRow } from '@vercel/postgres';
+export interface ReactionData {
+  values: string[];
+}
+
+export interface AutoReactionEmoji extends ReactionData {
+  command: string;
+}
+
+export interface ReactionAgentEmoji extends ReactionData {
+  command: string;
+}
+
+export interface Command extends ReactionData {
+  response: string;
+  command: string;
+}
 
 export interface QueryCache {
-  autoReactionEmojis: QueryResultRow[];
-  reactionAgentEmojis: QueryResultRow[];
-  commands: QueryResultRow[];
+  autoReactionEmojis: AutoReactionEmoji[];
+  reactionAgentEmojis: ReactionAgentEmoji[];
+  commands: Command[];
 }

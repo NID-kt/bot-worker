@@ -1,8 +1,14 @@
-import { type QueryResultRow, sql } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 import { ChannelType, Client, type Message, Partials } from 'discord.js';
 import dotenv from 'dotenv';
 
-import type { QueryCache } from './types';
+import type {
+  AutoReactionEmoji,
+  Command,
+  QueryCache,
+  ReactionAgentEmoji,
+  ReactionData,
+} from './types';
 
 dotenv.config();
 
@@ -28,12 +34,12 @@ const getOrCreateRegExp = (
 
 export const messageReaction = ({
   message,
-  queryResultRow,
+  reactionData,
 }: {
   message: Message;
-  queryResultRow: QueryResultRow;
+  reactionData: ReactionData;
 }) => {
-  for (const value of queryResultRow.values) {
+  for (const value of reactionData.values) {
     try {
       message.react(value);
     } catch {}
@@ -41,7 +47,7 @@ export const messageReaction = ({
 };
 
 export const updateQueryCache = async (queryCache: QueryCache) => {
-  const autoReactionEmojis = await sql`
+  const autoReactionEmojis = await sql<AutoReactionEmoji>`
     SELECT ar.command, array_agg(e.value) as values
     FROM auto_reactions ar
     JOIN auto_reactions_emojis are ON ar.id = are."autoReactionId"
@@ -51,7 +57,7 @@ export const updateQueryCache = async (queryCache: QueryCache) => {
   `;
   queryCache.autoReactionEmojis = autoReactionEmojis.rows;
 
-  const reactionAgentEmojis = await sql`
+  const reactionAgentEmojis = await sql<ReactionAgentEmoji>`
     SELECT ra.command, array_agg(e.value) as values
     FROM reactions_agents ra
     JOIN reactions_agents_emojis rae ON ra.id = rae."reactionAgentId"
@@ -61,7 +67,7 @@ export const updateQueryCache = async (queryCache: QueryCache) => {
   `;
   queryCache.reactionAgentEmojis = reactionAgentEmojis.rows;
 
-  const commands = await sql`
+  const commands = await sql<Command>`
     SELECT c.command, c.response, array_agg(e.value) as values
     FROM commands c
     JOIN commands_emojis ce ON c.id = ce."commandId"
@@ -90,7 +96,7 @@ export const handleMessageCreate =
     for (const row of queryCache.autoReactionEmojis) {
       const regExp = getOrCreateRegExp(row.command, regexCache);
       if (regExp.test(message.content)) {
-        messageReaction({ message, queryResultRow: row });
+        messageReaction({ message, reactionData: row });
       }
     }
 
@@ -101,7 +107,7 @@ export const handleMessageCreate =
           message.delete();
           messageReaction({
             message: repliedMessage,
-            queryResultRow: row,
+            reactionData: row,
           });
         }
       }
@@ -110,7 +116,7 @@ export const handleMessageCreate =
     for (const row of queryCache.commands) {
       if (row.command === message.content) {
         message.reply(row.response);
-        messageReaction({ message, queryResultRow: row });
+        messageReaction({ message, reactionData: row });
       }
     }
 
