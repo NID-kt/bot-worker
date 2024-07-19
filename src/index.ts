@@ -28,12 +28,12 @@ const getOrCreateRegExp = (
 
 export const messageReaction = ({
   message,
-  queryResultRows,
+  queryResultRow,
 }: {
   message: Message;
-  queryResultRows: QueryResultRow;
+  queryResultRow: QueryResultRow;
 }) => {
-  for (const value of queryResultRows.values) {
+  for (const value of queryResultRow.values) {
     try {
       message.react(value);
     } catch {}
@@ -86,7 +86,7 @@ export const handleMessageCreate =
     for (const row of queryCache.autoReactionEmojis) {
       const regExp = getOrCreateRegExp(row.command, regexCache);
       if (regExp.test(message.content)) {
-        messageReaction({ message, queryResultRows: row });
+        messageReaction({ message, queryResultRow: row });
       }
     }
 
@@ -97,7 +97,7 @@ export const handleMessageCreate =
           message.delete();
           messageReaction({
             message: repliedMessage,
-            queryResultRows: row,
+            queryResultRow: row,
           });
         }
       }
@@ -106,7 +106,7 @@ export const handleMessageCreate =
     for (const row of queryCache.commands) {
       if (row.command === message.content) {
         message.reply(row.response);
-        messageReaction({ message, queryResultRows: row });
+        messageReaction({ message, queryResultRow: row });
       }
     }
 
