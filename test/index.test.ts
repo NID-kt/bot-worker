@@ -4,7 +4,7 @@ import {
   handleClientReady,
   handleMessageCreate,
   updateQueryCache,
-} from '../src';
+} from '../src/index';
 import type { QueryCache } from '../src/types';
 
 jest.mock('discord.js', () => {
@@ -38,6 +38,7 @@ describe('handleMessageCreate', () => {
   const mockReply = jest.fn();
   const mockDisplayAvatarURL = jest.fn();
   const mockDelete = jest.fn();
+  const mockUpdateQueryCache = jest.fn();
   const client = { user: {} } as unknown as Client;
   const regexCache = new Map<string, RegExp>();
   const queryCache: QueryCache = {
@@ -49,6 +50,7 @@ describe('handleMessageCreate', () => {
     client,
     regexCache,
     queryCache,
+    updateQueryCache: mockUpdateQueryCache,
   });
 
   const createMockMessage = ({
@@ -57,12 +59,16 @@ describe('handleMessageCreate', () => {
     isBot = false,
     isMentionedMe = false,
     hasReference = false,
+    guildId = '1223834970863177769',
+    channelId = '1223834970863177769',
   }: {
     content: string;
     channelType: ChannelType;
     isBot?: boolean;
     isMentionedMe?: boolean;
     hasReference?: boolean;
+    guildId?: string;
+    channelId?: string;
   }) => {
     const fetchReference = hasReference
       ? jest.fn().mockResolvedValue(
@@ -91,6 +97,8 @@ describe('handleMessageCreate', () => {
       delete: mockDelete,
       fetchReference: fetchReference,
       reference: reference,
+      guildId,
+      channelId,
     } as unknown as Message;
   };
 
@@ -100,6 +108,63 @@ describe('handleMessageCreate', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('should update query cache when !updateQueryCache command is used in the correct channel and guild', async () => {
+    process.env.UPDATE_QUERY_CACHE_CHANNEL_ID = '1223834970863177769';
+    process.env.GUILD_ID = '1223834970863177769';
+
+    const message = createMockMessage({
+      content: '!updateQueryCache',
+      channelType: ChannelType.GuildText,
+      channelId: '1223834970863177769',
+      guildId: '1223834970863177769',
+    });
+
+    const mockReplyMessage = {
+      reply: jest.fn(),
+    };
+    message.reply = jest.fn().mockResolvedValue(mockReplyMessage);
+
+    await handleMessageCreateCurried(message);
+
+    expect(message.reply).toHaveBeenCalledWith('Updating query cache...');
+    expect(mockUpdateQueryCache).toHaveBeenCalledWith(queryCache);
+    expect(mockReplyMessage.reply).toHaveBeenCalledWith('Updated query cache');
+  });
+
+  it('should not update query cache when !updateQueryCache command is used in the wrong channel', async () => {
+    process.env.UPDATE_QUERY_CACHE_CHANNEL_ID = '1223834970863177769';
+    process.env.GUILD_ID = '1223834970863177769';
+
+    const message = createMockMessage({
+      content: '!updateQueryCache',
+      channelType: ChannelType.GuildText,
+      channelId: 'wrong_channel_id',
+      guildId: '1223834970863177769',
+    });
+
+    await handleMessageCreateCurried(message);
+
+    expect(message.reply).not.toHaveBeenCalled();
+    expect(mockUpdateQueryCache).not.toHaveBeenCalled();
+  });
+
+  it('should not update query cache when !updateQueryCache command is used in the wrong guild', async () => {
+    process.env.UPDATE_QUERY_CACHE_CHANNEL_ID = '1223834970863177769';
+    process.env.GUILD_ID = '1223834970863177769';
+
+    const message = createMockMessage({
+      content: '!updateQueryCache',
+      channelType: ChannelType.GuildText,
+      channelId: '1223834970863177769',
+      guildId: 'wrong_guild_id',
+    });
+
+    await handleMessageCreateCurried(message);
+
+    expect(message.reply).not.toHaveBeenCalled();
+    expect(mockUpdateQueryCache).not.toHaveBeenCalled();
   });
 
   it('should not reply to messages from bots', async () => {

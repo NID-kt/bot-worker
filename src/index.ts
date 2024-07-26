@@ -91,12 +91,25 @@ export const handleMessageCreate =
     client,
     regexCache,
     queryCache,
+    updateQueryCache,
   }: {
     client: Client;
     regexCache: Map<string, RegExp>;
     queryCache: QueryCache;
+    updateQueryCache: (queryCache: QueryCache) => Promise<void>;
   }) =>
   async (message: Message) => {
+    if (
+      message.content === '!updateQueryCache' &&
+      message.channelId === process.env.UPDATE_QUERY_CACHE_CHANNEL_ID &&
+      message.guildId === process.env.GUILD_ID
+    ) {
+      const reply = await message.reply('Updating query cache...');
+      await updateQueryCache(queryCache);
+      reply.reply('Updated query cache');
+      return;
+    }
+
     for (const row of queryCache.autoReactionEmojis) {
       const regExp = getOrCreateRegExp(row.command, regexCache);
       if (regExp.test(message.content)) {
@@ -163,7 +176,7 @@ client.on('ready', handleClientReady({ updateQueryCache }));
 
 client.on(
   'messageCreate',
-  handleMessageCreate({ client, regexCache, queryCache }),
+  handleMessageCreate({ client, regexCache, queryCache, updateQueryCache }),
 );
 
 client.login(process.env.DISCORD_BOT_TOKEN);
