@@ -70,8 +70,8 @@ export const updateQueryCache = async (queryCache: QueryCache) => {
   const commands = await sql<Command>`
     SELECT c.command, c.response, array_agg(e.value) as values
     FROM commands c
-    JOIN commands_emojis ce ON c.id = ce."commandId"
-    JOIN emojis e ON e.id = ce."emojiId"
+    LEFT JOIN commands_emojis ce ON c.id = ce."commandId"
+    LEFT JOIN emojis e ON e.id = ce."emojiId"
     GROUP BY c.id, c.command, c.response
     ORDER BY c.id ASC;
   `;
