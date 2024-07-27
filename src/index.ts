@@ -79,6 +79,16 @@ export const updateQueryCache = async (queryCache: QueryCache) => {
     ORDER BY c.id ASC;
   `;
   queryCache.commands = commands.rows;
+
+  const contextMenuReactions = await sql<ContextMenuReaction>`
+    SELECT c.name, array_agg(e.value) as values
+    FROM context_menu_reactions c
+    JOIN context_menu_reactions_emojis cme ON c.id = cme."contextMenuReactionId"
+    JOIN emojis e ON e.id = cme."emojiId"
+    GROUP BY c.id, c.name
+    ORDER BY c.id ASC;
+  `;
+  queryCache.contextMenuReactions = contextMenuReactions.rows;
 };
 
 export const handleClientReady =
