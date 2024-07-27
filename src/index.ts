@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import type {
   AutoReactionEmoji,
   Command,
+  ContextMenuReaction,
   QueryCache,
   ReactionAgentEmoji,
   ReactionData,
@@ -18,6 +19,7 @@ const queryCache: QueryCache = {
   autoReactionEmojis: [],
   reactionAgentEmojis: [],
   commands: [],
+  contextMenuReactions: [],
 };
 
 const getOrCreateRegExp = (
