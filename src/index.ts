@@ -68,7 +68,8 @@ export const updateQueryCache = async (queryCache: QueryCache) => {
   queryCache.reactionAgentEmojis = reactionAgentEmojis.rows;
 
   const commands = await sql<Command>`
-    SELECT c.command, c.response, array_agg(e.value) as values
+    SELECT c.command, c.response,
+      COALESCE(array_agg(e.value) FILTER (WHERE e.value IS NOT NULL), '{}') as values
     FROM commands c
     LEFT JOIN commands_emojis ce ON c.id = ce."commandId"
     LEFT JOIN emojis e ON e.id = ce."emojiId"
