@@ -1,5 +1,15 @@
 import { sql } from '@vercel/postgres';
-import { ChannelType, Client, type Message, Partials } from 'discord.js';
+import {
+  ApplicationCommandType,
+  ChannelType,
+  Client,
+  ContextMenuCommandBuilder,
+  type Interaction,
+  type Message,
+  Partials,
+  REST,
+  Routes,
+} from 'discord.js';
 import dotenv from 'dotenv';
 
 import type {
@@ -10,10 +20,12 @@ import type {
   ReactionAgentEmoji,
   ReactionData,
 } from './types';
+import { toFormatEmoji } from './utils';
 
 dotenv.config();
 
 const regexCache = new Map<string, RegExp>();
+const commandToEmojiStringMap = new Map<string, string>();
 
 const queryCache: QueryCache = {
   autoReactionEmojis: [],
@@ -91,12 +103,73 @@ export const updateQueryCache = async (queryCache: QueryCache) => {
   queryCache.contextMenuReactions = contextMenuReactions.rows;
 };
 
+export const updateCommandToEmojiStringMap = async ({
+  commandToEmojiStringMap,
+  queryCache,
+}: {
+  commandToEmojiStringMap: Map<string, string>;
+  queryCache: QueryCache;
+}) => {
+  for (const row of queryCache.contextMenuReactions) {
+    const formattedEmojis = await Promise.all(
+      row.values.map(toFormatEmoji(rest, process.env.GUILD_ID as string)),
+    );
+    commandToEmojiStringMap.set(row.name, formattedEmojis.join(' '));
+  }
+};
+
+export const updateApplicationCommands = ({
+  rest,
+  queryCache,
+}: { rest: REST; queryCache: QueryCache }) => {
+  const commands = queryCache.contextMenuReactions.map((row) => {
+    return new ContextMenuCommandBuilder()
+      .setName(row.name)
+      .setType(ApplicationCommandType.Message);
+  });
+
+  return rest.put(
+    Routes.applicationGuildCommands(
+      process.env.BOT_APPLICATION_ID as string,
+      process.env.GUILD_ID as string,
+    ),
+    {
+      body: commands,
+    },
+  );
+};
+
 export const handleClientReady =
   ({
     updateQueryCache,
-  }: { updateQueryCache: (queryCache: QueryCache) => Promise<void> }) =>
-  () => {
-    return updateQueryCache(queryCache);
+    updateApplicationCommands,
+    updateCommandToEmojiStringMap,
+  }: {
+    updateQueryCache: (queryCache: QueryCache) => Promise<void>;
+    updateApplicationCommands: ({
+      rest,
+      queryCache,
+    }: {
+      rest: REST;
+      queryCache: QueryCache;
+    }) => Promise<unknown>;
+    updateCommandToEmojiStringMap: ({
+      commandToEmojiStringMap,
+      queryCache,
+    }: {
+      commandToEmojiStringMap: Map<string, string>;
+      queryCache: QueryCache;
+    }) => Promise<void>;
+  }) =>
+  async () => {
+    await updateQueryCache(queryCache);
+    await Promise.all([
+      updateApplicationCommands({ rest, queryCache }),
+      updateCommandToEmojiStringMap({
+        commandToEmojiStringMap,
+        queryCache,
+      }),
+    ]);
   };
 
 export const handleMessageCreate =
@@ -180,16 +253,60 @@ export const handleMessageCreate =
     }
   };
 
+export const handleInteractionCreate =
+  ({
+    commandToEmojiStringMap,
+    queryCache,
+  }: {
+    commandToEmojiStringMap: Map<string, string>;
+    queryCache: QueryCache;
+  }) =>
+  async (interaction: Interaction) => {
+    if (interaction.isContextMenuCommand() && interaction.channel) {
+      for (const row of queryCache.contextMenuReactions) {
+        if (interaction.commandName === row.name) {
+          const message = await interaction.channel.messages.fetch(
+            interaction.targetId,
+          );
+          messageReaction({ message, reactionData: row });
+          interaction.reply({
+            content: `Reacted to ${message.url} with ${commandToEmojiStringMap.get(row.name)}`,
+            ephemeral: true,
+          });
+        }
+      }
+    }
+  };
+
+const rest = new REST({ version: '10' }).setToken(
+  process.env.DISCORD_BOT_TOKEN as string,
+);
+
 const client = new Client({
   intents: ['DirectMessages', 'Guilds', 'GuildMessages', 'MessageContent'],
   partials: [Partials.Channel],
 });
 
-client.on('ready', handleClientReady({ updateQueryCache }));
+client.on(
+  'ready',
+  handleClientReady({
+    updateQueryCache,
+    updateApplicationCommands,
+    updateCommandToEmojiStringMap,
+  }),
+);
 
 client.on(
   'messageCreate',
   handleMessageCreate({ client, regexCache, queryCache, updateQueryCache }),
+);
+
+client.on(
+  'interactionCreate',
+  handleInteractionCreate({
+    commandToEmojiStringMap,
+    queryCache,
+  }),
 );
 
 client.login(process.env.DISCORD_BOT_TOKEN);
