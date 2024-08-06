@@ -16,7 +16,7 @@
     "node": "^20"
   },
   "dependencies": {
-    "@vercel/postgres": "^0.8.0",
+    "@vercel/postgres": "^0.9.0",
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",
     "zlib-sync": "^0.1.9"
