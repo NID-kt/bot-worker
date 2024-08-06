@@ -1,10 +1,24 @@
-import { type QueryResultRow, sql } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 import { ChannelType, Client, type Message, Partials } from 'discord.js';
 import dotenv from 'dotenv';
+
+import type {
+  AutoReactionEmoji,
+  Command,
+  QueryCache,
+  ReactionAgentEmoji,
+  ReactionData,
+} from './types';
 
 dotenv.config();
 
 const regexCache = new Map<string, RegExp>();
+
+const queryCache: QueryCache = {
+  autoReactionEmojis: [],
+  reactionAgentEmojis: [],
+  commands: [],
+};
 
 const getOrCreateRegExp = (
   command: string,
@@ -20,91 +34,111 @@ const getOrCreateRegExp = (
 
 export const messageReaction = ({
   message,
-  queryResultRows,
-}: { message: Message; queryResultRows: QueryResultRow[] }) => {
-  try {
-    for (const row of queryResultRows) {
-      message.react(row.value);
-    }
-  } catch {}
+  reactionData,
+}: {
+  message: Message;
+  reactionData: ReactionData;
+}) => {
+  for (const value of reactionData.values) {
+    try {
+      message.react(value);
+    } catch {}
+  }
 };
+
+export const updateQueryCache = async (queryCache: QueryCache) => {
+  const autoReactionEmojis = await sql<AutoReactionEmoji>`
+    SELECT ar.command, array_agg(e.value) as values
+    FROM auto_reactions ar
+    JOIN auto_reactions_emojis are ON ar.id = are."autoReactionId"
+    JOIN emojis e ON e.id = are."emojiId"
+    GROUP BY ar.id, ar.command
+    ORDER BY ar.id ASC;
+  `;
+  queryCache.autoReactionEmojis = autoReactionEmojis.rows;
+
+  const reactionAgentEmojis = await sql<ReactionAgentEmoji>`
+    SELECT ra.command, array_agg(e.value) as values
+    FROM reactions_agents ra
+    JOIN reactions_agents_emojis rae ON ra.id = rae."reactionAgentId"
+    JOIN emojis e ON e.id = rae."emojiId"
+    GROUP BY ra.id, ra.command
+    ORDER BY ra.id ASC;
+  `;
+  queryCache.reactionAgentEmojis = reactionAgentEmojis.rows;
+
+  const commands = await sql<Command>`
+    SELECT c.command, c.response,
+      COALESCE(array_agg(e.value) FILTER (WHERE e.value IS NOT NULL), '{}') as values
+    FROM commands c
+    LEFT JOIN commands_emojis ce ON c.id = ce."commandId"
+    LEFT JOIN emojis e ON e.id = ce."emojiId"
+    GROUP BY c.id, c.command, c.response
+    ORDER BY c.id ASC;
+  `;
+  queryCache.commands = commands.rows;
+};
+
+export const handleClientReady =
+  ({
+    updateQueryCache,
+  }: { updateQueryCache: (queryCache: QueryCache) => Promise<void> }) =>
+  () => {
+    return updateQueryCache(queryCache);
+  };
 
 export const handleMessageCreate =
   ({
     client,
     regexCache,
-  }: { client: Client; regexCache: Map<string, RegExp> }) =>
+    queryCache,
+    updateQueryCache,
+  }: {
+    client: Client;
+    regexCache: Map<string, RegExp>;
+    queryCache: QueryCache;
+    updateQueryCache: (queryCache: QueryCache) => Promise<void>;
+  }) =>
   async (message: Message) => {
-    for (const row of (await sql`SELECT command FROM auto_reactions`).rows) {
-      const regExp = getOrCreateRegExp(row.command, regexCache);
-      if (message.content.match(regExp)) {
-        const emojis = await sql`
-          SELECT e.value
-          FROM emojis e
-          JOIN auto_reactions_emojis ae ON e.id = ae."emojiId"
-          WHERE ae."autoReactionId" = ${row.id}
-          ORDER BY ae.id ASC
-        `;
-
-        messageReaction({ message, queryResultRows: emojis.rows });
-      }
+    if (
+      message.content === '!updateQueryCache' &&
+      message.channelId === process.env.UPDATE_QUERY_CACHE_CHANNEL_ID &&
+      message.guildId === process.env.GUILD_ID
+    ) {
+      const reply = await message.reply('Updating query cache...');
+      await updateQueryCache(queryCache);
+      reply.reply('Updated query cache');
+      return;
     }
 
-    const reactionEmojis = await sql`
-      SELECT ar.command, e.value
-      FROM auto_reactions ar
-      JOIN auto_reactions_emojis are ON ar.id = are."autoReactionId"
-      JOIN emojis e ON e.id = are."emojiId"
-      ORDER BY are.id ASC;
-    `;
-
-    for (const row of reactionEmojis.rows) {
+    for (const row of queryCache.autoReactionEmojis) {
       const regExp = getOrCreateRegExp(row.command, regexCache);
-      if (message.content.match(regExp)) {
-        messageReaction({ message, queryResultRows: [row] });
+      if (regExp.test(message.content)) {
+        messageReaction({ message, reactionData: row });
       }
     }
 
     if (message.reference?.messageId) {
-      console.log(message.content);
-      const reactionAgentEmojis = await sql`
-        SELECT e.value
-        FROM emojis e
-        JOIN reactions_agents_emojis rae ON e.id = rae."emojiId"
-        JOIN reactions_agents ra ON ra.id = rae."reactionAgentId"
-        WHERE ra.command = ${message.content}
-        ORDER BY rae.id ASC;
-      `;
-      console.log(reactionAgentEmojis);
-
-      if (reactionAgentEmojis.rows.length !== 0) {
-        const repliedMessage = await message.fetchReference();
-        message.delete();
-        messageReaction({
-          message: repliedMessage,
-          queryResultRows: reactionAgentEmojis.rows,
-        });
+      for (const row of queryCache.reactionAgentEmojis) {
+        if (row.command === message.content) {
+          const repliedMessage = await message.fetchReference();
+          message.delete();
+          messageReaction({
+            message: repliedMessage,
+            reactionData: row,
+          });
+        }
       }
     }
 
-    const commands = await sql`
-      SELECT id, response
-      FROM commands
-      WHERE command = ${message.content}
-    `;
+    for (const row of queryCache.commands) {
+      if (row.command === message.content) {
+        message.reply(row.response);
+        messageReaction({ message, reactionData: row });
+      }
+    }
 
-    if (commands.rows.length !== 0) {
-      message.reply(commands.rows[0].response);
-
-      const emojis = await sql`
-        SELECT e.value
-        FROM commands_emojis ce
-        JOIN emojis e ON e.id = ce."emojiId"
-        WHERE ce."commandId" = ${commands.rows[0].id}
-      `;
-
-      messageReaction({ message, queryResultRows: emojis.rows });
-    } else if (message.channel.type === ChannelType.DM) {
+    if (message.channel.type === ChannelType.DM) {
       if (process.env.AUDIT_LOG_WEBHOOK) {
         await fetch(process.env.AUDIT_LOG_WEBHOOK, {
           method: 'POST',
@@ -120,7 +154,7 @@ export const handleMessageCreate =
         });
       }
 
-      if (message.author.bot) {
+      if (message.author.bot || process.env.STOP_SENDING_DM === 'true') {
         return;
       }
 
@@ -139,6 +173,11 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-client.on('messageCreate', handleMessageCreate({ client, regexCache }));
+client.on('ready', handleClientReady({ updateQueryCache }));
+
+client.on(
+  'messageCreate',
+  handleMessageCreate({ client, regexCache, queryCache, updateQueryCache }),
+);
 
 client.login(process.env.DISCORD_BOT_TOKEN);
