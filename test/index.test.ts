@@ -26,10 +26,20 @@ const expectReactionsToHaveBeenCalled = (mockReact: jest.Mock) => {
 };
 
 describe('handleClientReady', () => {
-  it('should call updateQueryCache when invoked', async () => {
+  it('should call updateQueryCache, updateApplicationCommands, and updateCommandToEmojiStringMap when invoked', async () => {
     const mockUpdateQueryCache = jest.fn();
+    const mockUpdateApplicationCommands = jest.fn();
+    const mockUpdateCommandToEmojiStringMap = jest.fn();
 
-    await handleClientReady({ updateQueryCache: mockUpdateQueryCache })();
+    await handleClientReady({
+      updateQueryCache: mockUpdateQueryCache,
+      updateApplicationCommands: mockUpdateApplicationCommands,
+      updateCommandToEmojiStringMap: mockUpdateCommandToEmojiStringMap,
+    })();
+
+    expect(mockUpdateQueryCache).toHaveBeenCalled();
+    expect(mockUpdateApplicationCommands).toHaveBeenCalled();
+    expect(mockUpdateCommandToEmojiStringMap).toHaveBeenCalled();
   });
 });
 
@@ -45,6 +55,7 @@ describe('handleMessageCreate', () => {
     autoReactionEmojis: [],
     reactionAgentEmojis: [],
     commands: [],
+    contextMenuReactions: [],
   };
   const handleMessageCreateCurried = handleMessageCreate({
     client,

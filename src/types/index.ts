@@ -15,8 +15,13 @@ export interface Command extends ReactionData {
   command: string;
 }
 
+export interface ContextMenuReaction extends ReactionData {
+  name: string;
+}
+
 export interface QueryCache {
   autoReactionEmojis: AutoReactionEmoji[];
   reactionAgentEmojis: ReactionAgentEmoji[];
   commands: Command[];
+  contextMenuReactions: ContextMenuReaction[];
 }
