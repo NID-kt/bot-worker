@@ -10,6 +10,8 @@ import type {
   ReactionData,
 } from './types';
 
+import job from './fetchEventsJob';
+
 dotenv.config();
 
 const regexCache = new Map<string, RegExp>();
@@ -39,11 +41,11 @@ export const messageReaction = ({
   message: Message;
   reactionData: ReactionData;
 }) => {
-  for (const value of reactionData.values) {
-    try {
-      message.react(value);
-    } catch {}
-  }
+  // for (const value of reactionData.values) {
+  //   try {
+  //     message.react(value);
+  //   } catch {}
+  // }
 };
 
 export const updateQueryCache = async (queryCache: QueryCache) => {
@@ -179,5 +181,8 @@ client.on(
   'messageCreate',
   handleMessageCreate({ client, regexCache, queryCache, updateQueryCache }),
 );
+
+job.fireOnTick();
+job.start();
 
 client.login(process.env.DISCORD_BOT_TOKEN);
