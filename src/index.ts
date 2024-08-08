@@ -41,11 +41,11 @@ export const messageReaction = ({
   message: Message;
   reactionData: ReactionData;
 }) => {
-  // for (const value of reactionData.values) {
-  //   try {
-  //     message.react(value);
-  //   } catch {}
-  // }
+  for (const value of reactionData.values) {
+    try {
+      message.react(value);
+    } catch {}
+  }
 };
 
 export const updateQueryCache = async (queryCache: QueryCache) => {
