@@ -31,3 +31,7 @@ export interface ScheduledEvent {
   location?: string | undefined | null;
   recurrence?: string | undefined | null;
 }
+
+export interface ScheduledEventWithUrl extends ScheduledEvent {
+  url?: string | undefined | null;
+}

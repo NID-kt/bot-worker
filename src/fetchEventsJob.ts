@@ -18,7 +18,7 @@ import {
   getUpdatedEvents,
 } from './eventSyncUtil';
 import { convertRFC5545RecurrenceRule } from './recurrenceUtil';
-import type { ScheduledEvent } from './types/index';
+import type { ScheduledEventWithUrl } from './types/index';
 
 const job = new CronJob(
   '0 * * * *', // cronTime
@@ -35,7 +35,7 @@ const job = new CronJob(
 
     const rest = new REST({ version: '10' }).setToken(token);
     console.log('Fetching new events...');
-    const newEvents: ScheduledEvent[] = (
+    const newEvents: ScheduledEventWithUrl[] = (
       (await rest.get(
         Routes.guildScheduledEvents(guildID),
       )) as APIGuildScheduledEvent[]
@@ -55,6 +55,7 @@ const job = new CronJob(
           ? // biome-ignore lint/suspicious/noExplicitAny: <explanation>
             convertRFC5545RecurrenceRule((event as any).recurrence_rule)
           : null,
+        url: `https://discord.com/events/${guildID}/${event.id}`,
       };
     });
 

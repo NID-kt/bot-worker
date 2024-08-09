@@ -1,9 +1,9 @@
 // Google Calendarの操作用
 
 import { type calendar_v3, google } from 'googleapis';
-import type { ScheduledEvent } from './types';
+import type { ScheduledEventWithUrl } from './types';
 
-function createSchemaEvent(event: ScheduledEvent) {
+function createSchemaEvent(event: ScheduledEventWithUrl) {
   const body: calendar_v3.Schema$Event = {
     location: event.location,
     id: event.id,
@@ -20,6 +20,10 @@ function createSchemaEvent(event: ScheduledEvent) {
       ).toISOString(),
       timeZone: 'Asia/Tokyo',
     },
+    source: {
+      url: event.url ?? undefined,
+      title: event.name,
+    },
   };
 
   if (event.recurrence) {
@@ -31,7 +35,7 @@ function createSchemaEvent(event: ScheduledEvent) {
 
 export async function createCalEvent(
   access_token: string,
-  event: ScheduledEvent,
+  event: ScheduledEventWithUrl,
 ) {
   const body: calendar_v3.Schema$Event = createSchemaEvent(event);
   const api = google.calendar({
@@ -62,7 +66,7 @@ export async function createCalEvent(
 
 export async function updateCalEvent(
   access_token: string,
-  event: ScheduledEvent,
+  event: ScheduledEventWithUrl,
 ) {
   const body: calendar_v3.Schema$Event = createSchemaEvent(event);
   const api = google.calendar({
@@ -82,7 +86,7 @@ export async function updateCalEvent(
 
 export async function removeCalEvent(
   access_token: string,
-  event: ScheduledEvent,
+  event: ScheduledEventWithUrl,
 ) {
   const api = google.calendar({
     version: 'v3',
