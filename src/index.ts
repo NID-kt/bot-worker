@@ -1,5 +1,15 @@
 import { sql } from '@vercel/postgres';
-import { ChannelType, Client, type Message, Partials } from 'discord.js';
+import {
+  type APIGuildScheduledEvent,
+  ChannelType,
+  Client,
+  type GuildScheduledEvent,
+  GuildScheduledEventStatus,
+  type Message,
+  type PartialGuildScheduledEvent,
+  Partials,
+  Routes,
+} from 'discord.js';
 import dotenv from 'dotenv';
 
 import type {
@@ -10,7 +20,13 @@ import type {
   ReactionData,
 } from './types';
 
-import job from './fetchEventsJob';
+import {
+  createCalEvent,
+  removeCalEvent,
+  updateCalEvent,
+} from './calendarService';
+import { retrieveUsersAndRefresh } from './dbService';
+import { transformAPIGuildScheduledEventToScheduledEvent } from './mapping';
 
 dotenv.config();
 
@@ -169,9 +185,62 @@ export const handleMessageCreate =
       message.reply(process.env.MENTION_MESSAGE_CONTENT ?? '');
     }
   };
+const handleEventCreate =
+  (client: Client) => async (event: GuildScheduledEvent) => {
+    if (event.creatorId) {
+      console.log('Event created: ', event.name);
+      const users = await retrieveUsersAndRefresh();
+      const apiObj = (await client.rest.get(
+        Routes.guildScheduledEvent(event.guildId, event.id),
+      )) as APIGuildScheduledEvent;
+      const obj = transformAPIGuildScheduledEventToScheduledEvent(apiObj);
+      for (const user of users) {
+        createCalEvent(user.access_token, obj);
+      }
+    }
+  };
+const handleEventUpdate =
+  (client: Client) =>
+  async (
+    oldEvent: GuildScheduledEvent | PartialGuildScheduledEvent | null,
+    newEvent: GuildScheduledEvent,
+  ) => {
+    if (
+      newEvent.status === GuildScheduledEventStatus.Completed ||
+      newEvent.status === GuildScheduledEventStatus.Canceled
+    ) {
+      handleEventDelete(client)(newEvent);
+    }
+
+    console.log('Event updated: ', newEvent.name);
+    const users = await retrieveUsersAndRefresh();
+    // GuildScheduledEventにはrecurrence_ruleがないので、APIから取得する
+    const apiObj = (await client.rest.get(
+      Routes.guildScheduledEvent(newEvent.guildId, newEvent.id),
+    )) as APIGuildScheduledEvent;
+    const obj = transformAPIGuildScheduledEventToScheduledEvent(apiObj);
+    for (const user of users) {
+      updateCalEvent(user.access_token, obj);
+    }
+  };
+const handleEventDelete =
+  (client: Client) =>
+  async (event: GuildScheduledEvent | PartialGuildScheduledEvent) => {
+    console.log('Event deleted: ', event.name);
+    const users = await retrieveUsersAndRefresh();
+    for (const user of users) {
+      removeCalEvent(user.access_token, event);
+    }
+  };
 
 const client = new Client({
-  intents: ['DirectMessages', 'Guilds', 'GuildMessages', 'MessageContent'],
+  intents: [
+    'DirectMessages',
+    'Guilds',
+    'GuildMessages',
+    'MessageContent',
+    'GuildScheduledEvents',
+  ],
   partials: [Partials.Channel],
 });
 
@@ -181,8 +250,8 @@ client.on(
   'messageCreate',
   handleMessageCreate({ client, regexCache, queryCache, updateQueryCache }),
 );
-
-job.fireOnTick();
-job.start();
+client.on('guildScheduledEventCreate', handleEventCreate(client));
+client.on('guildScheduledEventDelete', handleEventDelete(client));
+client.on('guildScheduledEventUpdate', handleEventUpdate(client));
 
 client.login(process.env.DISCORD_BOT_TOKEN);

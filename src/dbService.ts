@@ -1,5 +1,4 @@
 import { sql } from '@vercel/postgres';
-import type { ScheduledEvent } from './types';
 
 export type UserWithGoogleToken = {
   id: string;
@@ -72,47 +71,4 @@ export async function retrieveUsersAndRefresh() {
   }
 
   return users;
-}
-
-export async function retrieveDbEvents() {
-  const result = await sql`
-    SELECT * FROM events;
-  `;
-  return result.rows as ScheduledEvent[];
-}
-
-export async function insertDbEvent(event: ScheduledEvent) {
-  await sql`
-    INSERT INTO events (id, name, description, starttime, endtime, creatorid, location, recurrence)
-    VALUES (
-      ${event.id},
-      ${event.name},
-      ${event.description},
-      ${event.starttime.toISOString()},
-      ${event.endtime?.toISOString()},
-      ${event.creatorid},
-      ${event.location},
-      ${event.recurrence}
-  );
-  `;
-}
-
-export async function updateDbEvent(event: ScheduledEvent) {
-  await sql`
-    UPDATE events SET
-      name = ${event.name},
-      description = ${event.description},
-      starttime = ${event.starttime.toISOString()},
-      endtime = ${event.endtime?.toISOString()},
-      creatorid = ${event.creatorid},
-      location = ${event.location},
-      recurrence = ${event.recurrence}
-    WHERE id = ${event.id};
-  `;
-}
-
-export async function removeDbEvent(event: ScheduledEvent) {
-  await sql`
-    DELETE FROM events WHERE id = ${event.id};
-  `;
 }

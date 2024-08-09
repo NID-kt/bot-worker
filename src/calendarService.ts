@@ -1,9 +1,9 @@
 // Google Calendarの操作用
 
 import { type calendar_v3, google } from 'googleapis';
-import type { ScheduledEventWithUrl } from './types';
+import type { ScheduledEvent } from './types';
 
-function createSchemaEvent(event: ScheduledEventWithUrl) {
+function createSchemaEvent(event: ScheduledEvent) {
   const body: calendar_v3.Schema$Event = {
     location: event.location,
     id: event.id,
@@ -35,7 +35,7 @@ function createSchemaEvent(event: ScheduledEventWithUrl) {
 
 export async function createCalEvent(
   access_token: string,
-  event: ScheduledEventWithUrl,
+  event: ScheduledEvent,
 ) {
   const body: calendar_v3.Schema$Event = createSchemaEvent(event);
   const api = google.calendar({
@@ -66,7 +66,7 @@ export async function createCalEvent(
 
 export async function updateCalEvent(
   access_token: string,
-  event: ScheduledEventWithUrl,
+  event: ScheduledEvent,
 ) {
   const body: calendar_v3.Schema$Event = createSchemaEvent(event);
   const api = google.calendar({
@@ -86,7 +86,7 @@ export async function updateCalEvent(
 
 export async function removeCalEvent(
   access_token: string,
-  event: ScheduledEventWithUrl,
+  event: Pick<ScheduledEvent, 'id'>,
 ) {
   const api = google.calendar({
     version: 'v3',
@@ -103,7 +103,7 @@ export async function removeCalEvent(
     });
     // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   } catch (ex: any) {
-    if (ex.status === 410) {
+    if (ex.status === 410 || ex.status === 404) {
       return;
     }
 

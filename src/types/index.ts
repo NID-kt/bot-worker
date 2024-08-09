@@ -30,8 +30,5 @@ export interface ScheduledEvent {
   creatorid?: string | undefined | null;
   location?: string | undefined | null;
   recurrence?: string | undefined | null;
-}
-
-export interface ScheduledEventWithUrl extends ScheduledEvent {
   url?: string | undefined | null;
 }
