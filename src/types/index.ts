@@ -19,4 +19,5 @@ export interface QueryCache {
   autoReactionEmojis: AutoReactionEmoji[];
   reactionAgentEmojis: ReactionAgentEmoji[];
   commands: Command[];
+  slashCommands: Command[];
 }
