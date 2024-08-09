@@ -3,6 +3,7 @@ import {
   ChannelType,
   type Client,
   type GuildScheduledEvent,
+  GuildScheduledEventStatus,
   type Message,
 } from 'discord.js';
 
@@ -20,13 +21,14 @@ import {
   handleMessageCreate,
   updateQueryCache,
 } from '../src/index';
+import { transformAPIGuildScheduledEventToScheduledEvent } from '../src/mapping';
 import {
   type APIRecurrenceRule,
   convertRFC5545RecurrenceRule,
   getFrequencyString,
   getWeekdayString,
 } from '../src/recurrenceUtil';
-import type { QueryCache } from '../src/types';
+import type { QueryCache, ScheduledEvent } from '../src/types';
 
 jest.mock('discord.js', () => {
   const originalModule = jest.requireActual('discord.js');
@@ -341,6 +343,7 @@ describe('Event Handlers', () => {
     startTime,
     endTime,
     location,
+    status = GuildScheduledEventStatus.Scheduled,
   }: {
     guildId: string;
     id: string;
@@ -350,11 +353,13 @@ describe('Event Handlers', () => {
     startTime: string;
     endTime: string;
     location: string;
+    status?: GuildScheduledEventStatus;
   }) => {
     const event = {
       guildId,
       id,
       name,
+      status,
     } as GuildScheduledEvent;
     const apiObj = {
       id,
@@ -367,6 +372,7 @@ describe('Event Handlers', () => {
       entity_metadata: {
         location,
       },
+      status: status ?? GuildScheduledEventStatus.Scheduled,
     } as APIGuildScheduledEvent;
     const transformedObj = {
       id,
@@ -445,6 +451,33 @@ describe('Event Handlers', () => {
         user.access_token,
         mockTransformedObj,
       );
+    }
+  });
+
+  test('handleEventUpdate should call handleEventDelete if the event is completed or canceled', async () => {
+    const mockUsers = [{ access_token: 'token1' }, { access_token: 'token2' }];
+    const { event: mockEvent, apiObj: mockApiObj } = createMockEvent({
+      guildId: '123',
+      id: '456',
+      name: 'Test Event',
+      description: 'Test Description',
+      creatorId: '789',
+      startTime: '2022-01-01T00:00:00Z',
+      endTime: '2022-01-01T01:00:00Z',
+      location: 'Test Location',
+      status: GuildScheduledEventStatus.Completed,
+    });
+    const mockClient = { rest: { get: jest.fn() } } as unknown as Client;
+
+    (retrieveUsersAndRefresh as jest.Mock).mockResolvedValue(mockUsers);
+    (mockClient.rest.get as jest.Mock).mockResolvedValue(mockApiObj);
+
+    await handleEventUpdate(mockClient)({} as GuildScheduledEvent, mockEvent);
+
+    expect(retrieveUsersAndRefresh).toHaveBeenCalled();
+    expect(removeCalEvent).toHaveBeenCalledTimes(mockUsers.length);
+    for (const user of mockUsers) {
+      expect(removeCalEvent).toHaveBeenCalledWith(user.access_token, mockEvent);
     }
   });
 
@@ -554,5 +587,102 @@ describe('recurrenceUtil', () => {
         'RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE;BYMONTH=1,3;COUNT=10',
       );
     });
+  });
+});
+
+describe('transformAPIGuildScheduledEventToScheduledEvent', () => {
+  it('should transform APIGuildScheduledEvent to ScheduledEvent with all fields', () => {
+    const apiEvent: APIGuildScheduledEvent = {
+      id: '123',
+      name: 'Test Event',
+      description: 'This is a test event',
+      scheduled_start_time: '2023-10-01T10:00:00Z',
+      scheduled_end_time: '2023-10-01T12:00:00Z',
+      creator_id: '456',
+      entity_metadata: { location: 'Test Location' },
+      guild_id: '789',
+      recurrence_rule: {
+        start: new Date(),
+        frequency: 3,
+        interval: 1,
+      } as APIRecurrenceRule,
+      // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    } as any;
+
+    const result: ScheduledEvent =
+      transformAPIGuildScheduledEventToScheduledEvent(apiEvent);
+
+    expect(result).toEqual({
+      id: '123',
+      name: 'Test Event',
+      description: 'This is a test event',
+      starttime: new Date('2023-10-01T10:00:00Z'),
+      endtime: new Date('2023-10-01T12:00:00Z'),
+      creatorid: '456',
+      location: 'Test Location',
+      recurrence: 'RRULE:FREQ=DAILY;INTERVAL=1',
+      url: 'https://discord.com/events/789/123',
+    });
+  });
+
+  it('should transform APIGuildScheduledEvent to ScheduledEvent with missing optional fields', () => {
+    const apiEvent: APIGuildScheduledEvent = {
+      id: '123',
+      name: 'Test Event',
+      scheduled_start_time: '2023-10-01T10:00:00Z',
+      guild_id: '789',
+      // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    } as any;
+
+    const result: ScheduledEvent =
+      transformAPIGuildScheduledEventToScheduledEvent(apiEvent);
+
+    expect(result).toEqual({
+      id: '123',
+      name: 'Test Event',
+      description: null,
+      starttime: new Date('2023-10-01T10:00:00Z'),
+      endtime: null,
+      creatorid: null,
+      location: null,
+      recurrence: null,
+      url: 'https://discord.com/events/789/123',
+    });
+  });
+
+  it('should transform APIGuildScheduledEvent to ScheduledEvent with recurrence rule', () => {
+    const apiEvent: APIGuildScheduledEvent = {
+      id: '123',
+      name: 'Test Event',
+      scheduled_start_time: '2023-10-01T10:00:00Z',
+      guild_id: '789',
+      recurrence_rule: {
+        start: new Date(),
+        frequency: 2,
+        interval: 1,
+        by_weekday: [0],
+      } as APIRecurrenceRule,
+      // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    } as any;
+
+    const result: ScheduledEvent =
+      transformAPIGuildScheduledEventToScheduledEvent(apiEvent);
+
+    expect(result.recurrence).toBe('RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO');
+  });
+
+  it('should transform APIGuildScheduledEvent to ScheduledEvent without recurrence rule', () => {
+    const apiEvent: APIGuildScheduledEvent = {
+      id: '123',
+      name: 'Test Event',
+      scheduled_start_time: '2023-10-01T10:00:00Z',
+      guild_id: '789',
+      // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    } as any;
+
+    const result: ScheduledEvent =
+      transformAPIGuildScheduledEventToScheduledEvent(apiEvent);
+
+    expect(result.recurrence).toBe(null);
   });
 });
