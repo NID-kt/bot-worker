@@ -68,7 +68,6 @@ const job = new CronJob(
     console.log('Update:', update);
     console.log('Add:', add);
 
-    const users = await usersPromise;
     // biome-ignore lint/suspicious/noExplicitAny: <explanation>
     const promises: Promise<any>[] = [];
 
@@ -79,25 +78,22 @@ const job = new CronJob(
     // await sql`BEGIN;`;
     // await sql`LOCK TABLE events IN EXCLUSIVE MODE;`;
 
-    if (remove.length > 0) {
+    for (const user of await usersPromise) {
       for (const event of remove) {
         promises.push(removeDbEvent(event));
-        for (const user of users) {
-          promises.push(removeCalEvent(user.access_token, event));
-        }
+        promises.push(removeCalEvent(user.access_token, event));
       }
-    }
 
-    for (const event of update) {
-      promises.push(updateDbEvent(event));
-      for (const user of users) {
-        promises.push(updateCalEvent(user.access_token, event));
+      for (const event of update) {
+        promises.push(updateDbEvent(event));
       }
-    }
 
-    for (const event of add) {
-      promises.push(insertDbEvent(event));
-      for (const user of users) {
+      for (const event of add) {
+        promises.push(insertDbEvent(event));
+      }
+
+      for (const event of newEvents) {
+        // すでに存在する場合、更新される
         promises.push(createCalEvent(user.access_token, event));
       }
     }
