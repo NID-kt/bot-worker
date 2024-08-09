@@ -13,13 +13,15 @@ function createSchemaEvent(event: ScheduledEvent) {
       dateTime: event.starttime.toISOString(),
       timeZone: 'Asia/Tokyo',
     },
-  };
-  if (event.endtime) {
-    body.end = {
-      dateTime: event.endtime.toISOString(),
+    end: {
+      // starttimeの１時間後
+      dateTime: new Date(
+        event.starttime.getTime() + 60 * 60 * 1000,
+      ).toISOString(),
       timeZone: 'Asia/Tokyo',
-    };
-  }
+    },
+  };
+
   if (event.recurrence) {
     body.recurrence = [event.recurrence];
   }
