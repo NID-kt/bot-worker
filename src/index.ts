@@ -185,21 +185,21 @@ export const handleMessageCreate =
       message.reply(process.env.MENTION_MESSAGE_CONTENT ?? '');
     }
   };
-const handleEventCreate =
+
+export const handleEventCreate =
   (client: Client) => async (event: GuildScheduledEvent) => {
-    if (event.creatorId) {
-      console.log('Event created: ', event.name);
-      const users = await retrieveUsersAndRefresh();
-      const apiObj = (await client.rest.get(
-        Routes.guildScheduledEvent(event.guildId, event.id),
-      )) as APIGuildScheduledEvent;
-      const obj = transformAPIGuildScheduledEventToScheduledEvent(apiObj);
-      for (const user of users) {
-        createCalEvent(user.access_token, obj);
-      }
+    console.log('Event created: ', event.name);
+    const users = await retrieveUsersAndRefresh();
+    const apiObj = (await client.rest.get(
+      Routes.guildScheduledEvent(event.guildId, event.id),
+    )) as APIGuildScheduledEvent;
+    const obj = transformAPIGuildScheduledEventToScheduledEvent(apiObj);
+    for (const user of users) {
+      createCalEvent(user.access_token, obj);
     }
   };
-const handleEventUpdate =
+
+export const handleEventUpdate =
   (client: Client) =>
   async (
     oldEvent: GuildScheduledEvent | PartialGuildScheduledEvent | null,
@@ -209,7 +209,7 @@ const handleEventUpdate =
       newEvent.status === GuildScheduledEventStatus.Completed ||
       newEvent.status === GuildScheduledEventStatus.Canceled
     ) {
-      handleEventDelete(client)(newEvent);
+      handleEventDelete()(newEvent);
     }
 
     console.log('Event updated: ', newEvent.name);
@@ -223,9 +223,9 @@ const handleEventUpdate =
       updateCalEvent(user.access_token, obj);
     }
   };
-const handleEventDelete =
-  (client: Client) =>
-  async (event: GuildScheduledEvent | PartialGuildScheduledEvent) => {
+
+export const handleEventDelete =
+  () => async (event: GuildScheduledEvent | PartialGuildScheduledEvent) => {
     console.log('Event deleted: ', event.name);
     const users = await retrieveUsersAndRefresh();
     for (const user of users) {
@@ -251,7 +251,7 @@ client.on(
   handleMessageCreate({ client, regexCache, queryCache, updateQueryCache }),
 );
 client.on('guildScheduledEventCreate', handleEventCreate(client));
-client.on('guildScheduledEventDelete', handleEventDelete(client));
+client.on('guildScheduledEventDelete', handleEventDelete());
 client.on('guildScheduledEventUpdate', handleEventUpdate(client));
 
 client.login(process.env.DISCORD_BOT_TOKEN);
