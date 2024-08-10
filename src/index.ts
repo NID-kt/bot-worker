@@ -1,12 +1,10 @@
 import { sql } from '@vercel/postgres';
 import {
   ChannelType,
-  type ChatInputApplicationCommandData,
   Client,
   type Interaction,
   type Message,
   Partials,
-  PermissionFlagsBits,
 } from 'discord.js';
 import dotenv from 'dotenv';
 
@@ -16,7 +14,16 @@ import type {
   QueryCache,
   ReactionAgentEmoji,
   ReactionData,
+  SlashCommand,
 } from './types';
+
+import {
+  handleCustomSlashCommand,
+  handleManageSlashCommands,
+  handleManageSlashCommandsModal,
+  handleUpdateQueryCacheCommand,
+  updateSlashCommands,
+} from './slash-commands';
 
 dotenv.config();
 
@@ -87,7 +94,7 @@ export const updateQueryCache = async (queryCache: QueryCache) => {
   `;
   queryCache.commands = commands.rows;
 
-  const slashCommands = await sql<Command>`
+  const slashCommands = await sql<SlashCommand>`
     SELECT c.command, c.response,
       COALESCE(array_agg(e.value) FILTER (WHERE e.value IS NOT NULL), '{}') as values
     FROM slash_commands c
@@ -97,28 +104,6 @@ export const updateQueryCache = async (queryCache: QueryCache) => {
     ORDER BY c.id ASC;
   `;
   queryCache.slashCommands = slashCommands.rows;
-};
-
-export const updateSlashCommands = async (
-  client: Client,
-  queryCache: QueryCache,
-) => {
-  const commands = queryCache.slashCommands.map((row) => {
-    return {
-      name: row.command,
-      description: row.response,
-    } as ChatInputApplicationCommandData;
-  });
-  commands.push({
-    name: 'update-query-cache',
-    description: 'Update query cache',
-    defaultMemberPermissions: PermissionFlagsBits.Administrator,
-  });
-
-  await client.application?.commands.set(
-    commands,
-    process.env.GUILD_ID as string,
-  );
 };
 
 export const handleClientReady =
@@ -227,30 +212,40 @@ export const handleInteractionCreate =
     updateQueryCache: (queryCache: QueryCache) => Promise<void>;
   }) =>
   async (interaction: Interaction) => {
-    if (!interaction.isCommand()) {
-      return;
-    }
-    if (
-      interaction.commandName === 'update-query-cache' &&
-      interaction.channelId === process.env.UPDATE_QUERY_CACHE_CHANNEL_ID
-    ) {
-      const response = await interaction.reply('Updating query cache...');
-      await updateQueryCache(queryCache);
-      await response.edit('Updated query cache');
-    }
+    if (interaction.isChatInputCommand()) {
+      if (
+        await handleUpdateQueryCacheCommand(
+          interaction,
+          queryCache,
+          updateQueryCache,
+        )
+      ) {
+        return;
+      }
 
-    const command = queryCache.slashCommands.find(
-      (row) => row.command === interaction.commandName,
-    );
-    if (command) {
-      const response = await interaction.reply(command.response);
-      const message = await response.fetch();
-      messageReaction({ message, reactionData: command });
+      if (interaction.commandName === 'slash-command') {
+        await handleManageSlashCommands(interaction, queryCache);
+      }
+
+      await handleCustomSlashCommand(interaction, queryCache);
+    } else if (interaction.isModalSubmit()) {
+      if (
+        interaction.customId === 'createSlashCommandModal' ||
+        interaction.customId === 'editSlashCommandModal'
+      ) {
+        await handleManageSlashCommandsModal(queryCache, interaction);
+      }
     }
   };
 
 const client = new Client({
-  intents: ['DirectMessages', 'Guilds', 'GuildMessages', 'MessageContent'],
+  intents: [
+    'DirectMessages',
+    'Guilds',
+    'GuildMessages',
+    'MessageContent',
+    'GuildMessageReactions',
+  ],
   partials: [Partials.Channel],
 });
 
