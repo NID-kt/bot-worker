@@ -28,8 +28,12 @@ const expectReactionsToHaveBeenCalled = (mockReact: jest.Mock) => {
 describe('handleClientReady', () => {
   it('should call updateQueryCache when invoked', async () => {
     const mockUpdateQueryCache = jest.fn();
+    const mockUpdateSlashCommands = jest.fn();
 
-    await handleClientReady({ updateQueryCache: mockUpdateQueryCache })();
+    await handleClientReady({
+      updateQueryCache: mockUpdateQueryCache,
+      updateSlashCommands: mockUpdateSlashCommands,
+    })();
   });
 });
 
@@ -45,6 +49,7 @@ describe('handleMessageCreate', () => {
     autoReactionEmojis: [],
     reactionAgentEmojis: [],
     commands: [],
+    slashCommands: [],
   };
   const handleMessageCreateCurried = handleMessageCreate({
     client,

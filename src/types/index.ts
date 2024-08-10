@@ -15,8 +15,15 @@ export interface Command extends ReactionData {
   command: string;
 }
 
+export interface SlashCommand extends ReactionData {
+  response: string;
+  command: string;
+  discordId?: string | undefined | null;
+}
+
 export interface QueryCache {
   autoReactionEmojis: AutoReactionEmoji[];
   reactionAgentEmojis: ReactionAgentEmoji[];
   commands: Command[];
+  slashCommands: SlashCommand[];
 }
